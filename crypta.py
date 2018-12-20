@@ -146,9 +146,15 @@ def get_trends(closing_price, close_15_sma):
 
 def get_trading_signals(closing_price, trends):
     data = normalize_data(closing_price)
+    last_trend = ''
     for i in range(len(trends)):
         data[i] *= 0.5
-        if trends[i] == "up":
+        if trends[i] == 'up':
+            last_trend = 'up'
+            data[i] += 0.5
+        elif trends[i] == 'down':
+            last_trend = 'down'
+        elif i > 0 and trends[i] == 'no' and last_trend == 'up':
             data[i] += 0.5
     return data
 
@@ -221,10 +227,15 @@ y = trading_signals  # Target variable
 
 # split X and y into training and testing sets
 from sklearn.model_selection import train_test_split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=0)
+#X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=0)
+
+X_train = array([ma_15[0:-31], macd[0:-31], rsi_14[0:-31], wr_14[0:-31], d_3[0:-31], k_14[0:-31]]).transpose()
+y_train = y[0:-31]
+X_test = array([ma_15[-31:], macd[-31:], rsi_14[-31:], wr_14[-31:], d_3[-31:], k_14[-31:]]).transpose()
+
 #print(X_train)
 #print(y_train)
-
+#print(X_test)
 from sklearn.ensemble import RandomForestRegressor
 
 regressor = RandomForestRegressor(n_estimators=100, min_samples_split=2)
@@ -236,10 +247,7 @@ new_y = [y_pred]
 
 #отчет о точности
 from sklearn.metrics import mean_squared_error
-print((mean_squared_error(y_test, y_pred)))
-
-#print(y_test)
-#print(y_pred)
+#print((mean_squared_error(y_test, y_pred)))
 
 def get_predicted_trends(OTr, meanTr):
     result = []
@@ -263,7 +271,9 @@ def get_trading_decision(trends):
             result.append('Sell')
     return result
 
-predictedTrends = get_predicted_trends(y_pred, 0.5)
+tr_mean = numpy.mean(trading_signals[-31:])
+print(tr_mean)
+predictedTrends = get_predicted_trends(y_pred, tr_mean)
 tradingDecisions = get_trading_decision(predictedTrends)
 rows = numpy.arange(1, len(y_pred)+1)
 
