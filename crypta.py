@@ -1,7 +1,6 @@
 import requests
 import csv
 import numpy
-
 from datetime import datetime
 
 import pandas as pd
@@ -187,7 +186,10 @@ def write_data_to_csv(filename, columns_names, data, rows_amount):
 
             writer.writerow(d)
 
+import datetime
 
+
+open_price = read_column('indicators.csv', 'open').get_values()
 close = read_column('indicators.csv', 'close').get_values()
 close_15_sma = read_column('indicators.csv', 'close_15_sma').get_values()
 trends = get_trends(close, close_15_sma)
@@ -229,9 +231,11 @@ y = trading_signals  # Target variable
 from sklearn.model_selection import train_test_split
 #X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=0)
 
-X_train = array([ma_15[0:-31], macd[0:-31], rsi_14[0:-31], wr_14[0:-31], d_3[0:-31], k_14[0:-31]]).transpose()
-y_train = y[0:-31]
-X_test = array([ma_15[-31:], macd[-31:], rsi_14[-31:], wr_14[-31:], d_3[-31:], k_14[-31:]]).transpose()
+start_date = 31
+
+X_train = array([ma_15[0:-start_date], macd[0:-start_date], rsi_14[0:-start_date], wr_14[0:-start_date], d_3[0:-start_date], k_14[0:-start_date]]).transpose()
+y_train = y[0:-start_date]
+X_test = array([ma_15[-start_date:], macd[-start_date:], rsi_14[-start_date:], wr_14[-start_date:], d_3[-start_date:], k_14[-start_date:]]).transpose()
 
 #print(X_train)
 #print(y_train)
@@ -271,12 +275,39 @@ def get_trading_decision(trends):
             result.append('Sell')
     return result
 
-tr_mean = numpy.mean(trading_signals[-31:])
+tr_mean = numpy.mean(trading_signals[-start_date:])
 print(tr_mean)
 predictedTrends = get_predicted_trends(y_pred, tr_mean)
 tradingDecisions = get_trading_decision(predictedTrends)
 rows = numpy.arange(1, len(y_pred)+1)
+base = datetime.date.today() - datetime.timedelta(days=start_date)
+date_list = [base + datetime.timedelta(days=x) for x in range(0, start_date)]
 
-columns = ["Time series", "OTr", "Trend", "Trading decision"]
-d=[rows, y_pred, predictedTrends, tradingDecisions]
+columns = ["Time series", "Date", "OTr", "Trend", "Trading decision"]
+d = [rows, date_list, y_pred, predictedTrends, tradingDecisions]
+
 write_data_to_csv("OTri.csv", columns, d, len(y_pred))
+
+start_balance_USD = 1500
+curr_balance_USD = 1500
+curr_balance_BTC = 0
+BTC_to_USD_rate = open_price[-start_date:]
+
+print("BTC/USD", datetime.date.today(), ': ', BTC_to_USD_rate[start_date - 1])
+
+def get_profit_for_komozzkii(trading_decisions, start_balance, curr_balance_usd, curr_balance_btc, btc_to_usd_rate):
+    for i in range(len(trading_decisions)):
+        if trading_decisions[i] == 'Buy':
+            curr_balance_btc += curr_balance_usd / btc_to_usd_rate[i]
+            curr_balance_usd = 0
+        if trading_decisions[i] == 'Sell':
+            curr_balance_usd += curr_balance_btc * btc_to_usd_rate[i]
+            curr_balance_btc = 0
+
+    if curr_balance_btc == 0:
+        print("USD profit", curr_balance_usd - start_balance)
+    else:
+        print("BTC profit", curr_balance_btc - start_balance / btc_to_usd_rate[0])
+
+get_profit_for_komozzkii(tradingDecisions, start_balance_USD, curr_balance_USD, curr_balance_BTC, BTC_to_USD_rate)
+
